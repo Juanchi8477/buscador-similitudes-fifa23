@@ -31,14 +31,13 @@ def cargar_datos_fifa23():
         st.error("⚠️ No se encontró el archivo 'data.csv'. Asegúrate de que esté subido al repositorio.")
         st.stop()
         
-    # Mapeo exhaustivo para detectar la columna del nombre en cualquier dataset de FIFA 23
+    # Mapeo de nombres de columnas habituales en FIFA 23
     renombres = {
         "short_name": "Name",
         "long_name": "Name",
         "player_name": "Name",
         "KnownAs": "Name",
         "FullName": "Name",
-        "Name": "Name",
         "club_name": "Club",
         "ClubName": "Club",
         "player_positions": "Position",
@@ -48,17 +47,15 @@ def cargar_datos_fifa23():
         "age": "Age"
     }
     
-    # Renombrar columnas encontradas
-    columnas_existentes = {k: v for k, v in renombres.items() if k in df.columns and v not in df.columns}
-    df = df.rename(columns=columnas_existentes)
+    df = df.rename(columns={k: v for k, v in renombres.items() if k in df.columns and v not in df.columns})
 
-    # Si aún no existe 'Name', buscar la primera columna de texto que parezca contener nombres
+    # Si no encuentra 'Name', usa la primera columna de texto
     if "Name" not in df.columns:
         cols_texto = df.select_dtypes(include=['object']).columns
         if len(cols_texto) > 0:
             df = df.rename(columns={cols_texto[0]: "Name"})
 
-    # Rellenar valores vacíos y limpiar codificación
+    # Limpieza de valores nulos y codificación
     if "Name" in df.columns:
         df["Name"] = df["Name"].fillna("Sin Nombre").astype(str).apply(ftfy.fix_text)
     
@@ -67,13 +64,13 @@ def cargar_datos_fifa23():
         
     return df
 
-# Inicialización de la base de datos
+# Inicialización de los datos
 df = cargar_datos_fifa23()
 
 # 3. Formulario de selección y filtros
 with st.container():
     if "Name" not in df.columns:
-        st.error("⚠️ No se pudo identificar la columna con el nombre de los jugadores en el CSV. Revisa el encabezado de tu archivo.")
+        st.error("⚠️ No se pudo identificar la columna con el nombre de los jugadores en el CSV.")
         st.stop()
         
     jugadores_disponibles = sorted(df["Name"].unique())
@@ -87,8 +84,8 @@ with st.container():
 
 # 4. Procesamiento e índice de similitud matemática
 if buscar:
-    fila_objetivo = df[df["Name"] == jugador_seleccionado].iloc[0]
-    id_objetivo = fila_objetivo["sofifa_id"] if "sofifa_id" in df.columns else (fila_objetivo["ID"] if "ID" in df.columns else jugador_seleccionado)
+    # Obtener el índice posicional exacto del jugador en el dataframe original
+    indice_objetivo = df[df["Name"] == jugador_seleccionado].index[0]
     
     # Aplicar filtros
     if "Age" in df.columns and "Overall" in df.columns:
@@ -103,7 +100,7 @@ if buscar:
     if df_filtrado.empty:
         st.warning("No hay jugadores que cumplan simultáneamente con los filtros establecidos.")
     else:
-        # Detectar automáticamente columnas numéricas de atributos
+        # Filtrar columnas métricas numéricas
         columnas_excluidas = ['Age', 'Overall', 'sofifa_id', 'ID', 'potential', 'value_eur', 'wage_eur']
         columnas_metricas = df.select_dtypes(include=['int64', 'float64']).columns.tolist()
         columnas_metricas = [col for col in columnas_metricas if col not in columnas_excluidas]
@@ -112,16 +109,19 @@ if buscar:
             st.error("⚠️ No se encontraron columnas numéricas de atributos en el archivo CSV.")
             st.stop()
             
-        columna_indice = "sofifa_id" if "sofifa_id" in df.columns else ("ID" if "ID" in df.columns else df.index)
-        
-        # Normalización y similitud de coseno
+        # Normalización MinMaxScaler sobre el dataframe completo para conservar índices
         scaler = MinMaxScaler()
-        df_metricas_norm = scaler.fit_transform(df[columnas_metricas].fillna(0))
-        df_norm_completo = pd.DataFrame(df_metricas_norm, columns=columnas_metricas, index=df[columna_indice])
+        df_metricas_norm = pd.DataFrame(
+            scaler.fit_transform(df[columnas_metricas].fillna(0)),
+            columns=columnas_metricas,
+            index=df.index
+        )
         
-        vector_objetivo = df_norm_completo.loc[[id_objetivo]]
-        vectores_filtrados = df_norm_completo.loc[df_filtrado[columna_indice]]
+        # Extraer vectores usando los índices nativos de pandas
+        vector_objetivo = df_metricas_norm.loc[[indice_objetivo]]
+        vectores_filtrados = df_metricas_norm.loc[df_filtrado.index]
         
+        # Calcular similitud de coseno
         similitudes = cosine_similarity(vectores_filtrados, vector_objetivo)
         
         df_filtrado = df_filtrado.copy()
