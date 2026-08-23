@@ -31,49 +31,34 @@ def cargar_datos_fifa23():
         st.error("⚠️ No se encontró el archivo 'data.csv'. Asegúrate de que esté subido al repositorio.")
         st.stop()
         
-    # Mapeo de nombres de columnas habituales en FIFA 23
+    # Mapeo exacto basado en la cabecera de tu CSV
     renombres = {
         "short_name": "Name",
-        "long_name": "Name",
-        "player_name": "Name",
-        "KnownAs": "Name",
-        "FullName": "Name",
         "club_name": "Club",
-        "ClubName": "Club",
         "player_positions": "Position",
-        "BestPosition": "Position",
         "overall": "Overall",
-        "OverallRating": "Overall",
         "age": "Age"
     }
     
-    df = df.rename(columns={k: v for k, v in renombres.items() if k in df.columns and v not in df.columns})
+    df = df.rename(columns=renombres)
 
-    # Si no encuentra 'Name', usa la primera columna de texto
-    if "Name" not in df.columns:
-        cols_texto = df.select_dtypes(include=['object']).columns
-        if len(cols_texto) > 0:
-            df = df.rename(columns={cols_texto[0]: "Name"})
-
-    # Limpieza de valores nulos y codificación
+    # Limpieza y formateo de texto
     if "Name" in df.columns:
         df["Name"] = df["Name"].fillna("Sin Nombre").astype(str).apply(ftfy.fix_text)
-    
     if "Club" in df.columns:
         df["Club"] = df["Club"].fillna("Sin Club").astype(str).apply(ftfy.fix_text)
-        
     if "Position" in df.columns:
         df["Position"] = df["Position"].fillna("N/A").astype(str).apply(ftfy.fix_text)
         
     return df
 
-# Inicialización de los datos
+# Inicialización de la base de datos
 df = cargar_datos_fifa23()
 
 # 3. Formulario de selección y filtros
 with st.container():
     if "Name" not in df.columns:
-        st.error("⚠️ No se pudo identificar la columna con el nombre de los jugadores en el CSV.")
+        st.error("⚠️ No se pudo identificar la columna 'short_name' en el CSV.")
         st.stop()
         
     jugadores_disponibles = sorted(df["Name"].unique())
@@ -87,10 +72,8 @@ with st.container():
 
 # 4. Procesamiento e índice de similitud matemática
 if buscar:
-    # Obtener el índice posicional exacto del jugador objetivo
     indice_objetivo = df[df["Name"] == jugador_seleccionado].index[0]
     
-    # Aplicar filtros
     if "Age" in df.columns and "Overall" in df.columns:
         df_filtrado = df[
             (df["Age"] <= edad_maxima) & 
@@ -103,16 +86,17 @@ if buscar:
     if df_filtrado.empty:
         st.warning("No hay jugadores que cumplan simultáneamente con los filtros establecidos.")
     else:
-        # Filtrar columnas métricas numéricas
-        columnas_excluidas = ['Age', 'Overall', 'sofifa_id', 'ID', 'potential', 'value_eur', 'wage_eur']
+        # Excluir identificadores e información general para calcular similitud solo con atributos técnicos
+        columnas_excluidas = [
+            'player_id', 'fifa_version', 'fifa_update', 'league_id', 'league_level',
+            'club_team_id', 'club_jersey_number', 'club_contract_valid_until_year',
+            'nationality_id', 'nation_team_id', 'nation_jersey_number', 'release_clause_eur',
+            'Age', 'Overall', 'potential', 'value_eur', 'wage_eur'
+        ]
+        
         columnas_metricas = df.select_dtypes(include=['int64', 'float64']).columns.tolist()
         columnas_metricas = [col for col in columnas_metricas if col not in columnas_excluidas]
         
-        if not columnas_metricas:
-            st.error("⚠️ No se encontraron columnas numéricas de atributos en el archivo CSV.")
-            st.stop()
-            
-        # Normalización MinMaxScaler
         scaler = MinMaxScaler()
         df_metricas_norm = pd.DataFrame(
             scaler.fit_transform(df[columnas_metricas].fillna(0)),
@@ -120,7 +104,6 @@ if buscar:
             index=df.index
         )
         
-        # Vectores de similitud
         vector_objetivo = df_metricas_norm.loc[[indice_objetivo]]
         vectores_filtrados = df_metricas_norm.loc[df_filtrado.index]
         
@@ -133,7 +116,7 @@ if buscar:
         
         st.subheader(f"Jugadores más similares a {jugador_seleccionado}:")
         
-        # Mapeo de nombres al español para las columnas
+        # Mapeo de nombres al español
         columnas_mapa = {
             "Name": "Jugador",
             "Age": "Edad",
