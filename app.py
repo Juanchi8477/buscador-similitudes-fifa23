@@ -62,6 +62,9 @@ def cargar_datos_fifa23():
     if "Club" in df.columns:
         df["Club"] = df["Club"].fillna("Sin Club").astype(str).apply(ftfy.fix_text)
         
+    if "Position" in df.columns:
+        df["Position"] = df["Position"].fillna("N/A").astype(str).apply(ftfy.fix_text)
+        
     return df
 
 # Inicialización de los datos
@@ -84,7 +87,7 @@ with st.container():
 
 # 4. Procesamiento e índice de similitud matemática
 if buscar:
-    # Obtener el índice posicional exacto del jugador en el dataframe original
+    # Obtener el índice posicional exacto del jugador objetivo
     indice_objetivo = df[df["Name"] == jugador_seleccionado].index[0]
     
     # Aplicar filtros
@@ -109,7 +112,7 @@ if buscar:
             st.error("⚠️ No se encontraron columnas numéricas de atributos en el archivo CSV.")
             st.stop()
             
-        # Normalización MinMaxScaler sobre el dataframe completo para conservar índices
+        # Normalización MinMaxScaler
         scaler = MinMaxScaler()
         df_metricas_norm = pd.DataFrame(
             scaler.fit_transform(df[columnas_metricas].fillna(0)),
@@ -117,11 +120,10 @@ if buscar:
             index=df.index
         )
         
-        # Extraer vectores usando los índices nativos de pandas
+        # Vectores de similitud
         vector_objetivo = df_metricas_norm.loc[[indice_objetivo]]
         vectores_filtrados = df_metricas_norm.loc[df_filtrado.index]
         
-        # Calcular similitud de coseno
         similitudes = cosine_similarity(vectores_filtrados, vector_objetivo)
         
         df_filtrado = df_filtrado.copy()
@@ -131,11 +133,17 @@ if buscar:
         
         st.subheader(f"Jugadores más similares a {jugador_seleccionado}:")
         
-        columnas_visibles = ["Name"]
-        if "Age" in df.columns: columnas_visibles.append("Age")
-        if "Overall" in df.columns: columnas_visibles.append("Overall")
-        if "Club" in df.columns: columnas_visibles.append("Club")
-        if "Position" in df.columns: columnas_visibles.append("Position")
-        columnas_visibles.append("Similitud (%)")
+        # Mapeo de nombres al español para las columnas
+        columnas_mapa = {
+            "Name": "Jugador",
+            "Age": "Edad",
+            "Overall": "Media",
+            "Club": "Club",
+            "Position": "Posición",
+            "Similitud (%)": "Similitud (%)"
+        }
         
-        st.dataframe(resultados[columnas_visibles], use_container_width=True)
+        cols_a_mostrar = [col for col in columnas_mapa.keys() if col in resultados.columns]
+        tabla_final = resultados[cols_a_mostrar].rename(columns=columnas_mapa)
+        
+        st.dataframe(tabla_final, use_container_width=True)
