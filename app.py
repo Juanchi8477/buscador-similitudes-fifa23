@@ -31,7 +31,7 @@ def cargar_datos_fifa23():
         st.error("⚠️ No se encontró el archivo 'data.csv'. Asegúrate de que esté subido al repositorio.")
         st.stop()
         
-    # Mapeo exacto basado en la cabecera de tu CSV
+    # Mapeo exacto basado en la cabecera del CSV
     renombres = {
         "Known As": "Name",
         "Full Name": "FullName",
@@ -43,7 +43,6 @@ def cargar_datos_fifa23():
     
     df = df.rename(columns=renombres)
 
-    # Si por alguna razón 'Known As' venía vacío, intenta respaldar con FullName
     if "Name" not in df.columns and "FullName" in df.columns:
         df = df.rename(columns={"FullName": "Name"})
 
@@ -72,7 +71,8 @@ with st.container():
     edad_maxima = st.slider("Edad máxima:", min_value=16, max_value=45, value=25, step=1)
     calificacion_maxima = st.slider("Calificación máxima general:", min_value=45, max_value=99, value=75, step=1)
     
-    n_resultados = st.number_input("Los N mejores resultados:", min_value=1, max_value=30, value=5)
+    # Campo sin límite máximo para cantidad de resultados
+    n_resultados = st.number_input("Cantidad de resultados a mostrar:", min_value=1, value=5, max_value=None, step=1)
     buscar = st.button("Encontrar jugadores similares")
 
 # 4. Procesamiento e índice de similitud matemática
@@ -91,7 +91,6 @@ if buscar:
     if df_filtrado.empty:
         st.warning("No hay jugadores que cumplan simultáneamente con los filtros establecidos.")
     else:
-        # Excluir datos administrativos/financieros para la comparación de atributos técnicos
         columnas_excluidas = [
             'Overall', 'Potential', 'Value(in Euro)', 'Age', 'Height(in cm)', 'Weight(in kg)',
             'TotalStats', 'BaseStats', 'Wage(in Euro)', 'Release Clause', 'Club Jersey Number',
