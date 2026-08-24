@@ -33,16 +33,21 @@ def cargar_datos_fifa23():
         
     # Mapeo exacto basado en la cabecera de tu CSV
     renombres = {
-        "short_name": "Name",
-        "club_name": "Club",
-        "player_positions": "Position",
-        "overall": "Overall",
-        "age": "Age"
+        "Known As": "Name",
+        "Full Name": "FullName",
+        "Club Name": "Club",
+        "Best Position": "Position",
+        "Overall": "Overall",
+        "Age": "Age"
     }
     
     df = df.rename(columns=renombres)
 
-    # Limpieza y formateo de texto
+    # Si por alguna razón 'Known As' venía vacío, intenta respaldar con FullName
+    if "Name" not in df.columns and "FullName" in df.columns:
+        df = df.rename(columns={"FullName": "Name"})
+
+    # Limpieza de textos
     if "Name" in df.columns:
         df["Name"] = df["Name"].fillna("Sin Nombre").astype(str).apply(ftfy.fix_text)
     if "Club" in df.columns:
@@ -58,7 +63,7 @@ df = cargar_datos_fifa23()
 # 3. Formulario de selección y filtros
 with st.container():
     if "Name" not in df.columns:
-        st.error("⚠️ No se pudo identificar la columna 'short_name' en el CSV.")
+        st.error("⚠️ No se pudo identificar la columna 'Known As' o 'Full Name' en el CSV.")
         st.stop()
         
     jugadores_disponibles = sorted(df["Name"].unique())
@@ -86,17 +91,20 @@ if buscar:
     if df_filtrado.empty:
         st.warning("No hay jugadores que cumplan simultáneamente con los filtros establecidos.")
     else:
-        # Excluir identificadores e información general para calcular similitud solo con atributos técnicos
+        # Excluir datos administrativos/financieros para la comparación de atributos técnicos
         columnas_excluidas = [
-            'player_id', 'fifa_version', 'fifa_update', 'league_id', 'league_level',
-            'club_team_id', 'club_jersey_number', 'club_contract_valid_until_year',
-            'nationality_id', 'nation_team_id', 'nation_jersey_number', 'release_clause_eur',
-            'Age', 'Overall', 'potential', 'value_eur', 'wage_eur'
+            'Overall', 'Potential', 'Value(in Euro)', 'Age', 'Height(in cm)', 'Weight(in kg)',
+            'TotalStats', 'BaseStats', 'Wage(in Euro)', 'Release Clause', 'Club Jersey Number',
+            'National Team Jersey Number'
         ]
         
         columnas_metricas = df.select_dtypes(include=['int64', 'float64']).columns.tolist()
         columnas_metricas = [col for col in columnas_metricas if col not in columnas_excluidas]
         
+        if not columnas_metricas:
+            st.error("⚠️ No se encontraron columnas numéricas de atributos en el CSV.")
+            st.stop()
+
         scaler = MinMaxScaler()
         df_metricas_norm = pd.DataFrame(
             scaler.fit_transform(df[columnas_metricas].fillna(0)),
@@ -116,7 +124,6 @@ if buscar:
         
         st.subheader(f"Jugadores más similares a {jugador_seleccionado}:")
         
-        # Mapeo de nombres al español
         columnas_mapa = {
             "Name": "Jugador",
             "Age": "Edad",
