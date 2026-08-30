@@ -1,1 +1,1 @@
-https://buscador-similitudes-fifa19.streamlit.app/
+https://buscador-similitudes-fifa23.streamlit.app/
